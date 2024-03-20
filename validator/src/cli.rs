@@ -51,6 +51,7 @@ use {
     solana_unified_scheduler_pool::DefaultSchedulerPool,
     std::{path::PathBuf, str::FromStr},
 };
+use solana_rpc_client_api::request::DELINQUENT_VALIDATOR_SLOT_DISTANCE;
 
 const EXCLUDE_KEY: &str = "account-index-exclude-key";
 const INCLUDE_KEY: &str = "account-index-include-key";
@@ -2192,7 +2193,7 @@ impl DefaultArgs {
             maximum_local_snapshot_age: "2500".to_string(),
             genesis_archive_unpacked_size: MAX_GENESIS_ARCHIVE_UNPACKED_SIZE.to_string(),
             rpc_max_multiple_accounts: MAX_MULTIPLE_ACCOUNTS.to_string(),
-            health_check_slot_distance: "150".to_string(),
+            health_check_slot_distance: DELINQUENT_VALIDATOR_SLOT_DISTANCE.to_string(),
             tower_storage: "file".to_string(),
             etcd_domain_name: "localhost".to_string(),
             rpc_pubsub_max_active_subscriptions: PubSubConfig::default()
