@@ -35,6 +35,7 @@ struct Config {
     json_rpc_urls: Vec<String>,
     rpc_timeout: Duration,
     minimum_validator_identity_balance: u64,
+    minimum_vote_account_balance: Option<u64>,
     monitor_active_stake: bool,
     active_stake_alert_threshold: u8,
     unhealthy_threshold: usize,
@@ -151,6 +152,18 @@ fn get_config() -> Config {
                 .help("Alert when the validator identity balance is less than this amount of SOL"),
         )
         .arg(
+            Arg::with_name("minimum_vote_account_balance")
+                .long("minimum-vote-account-balance")
+                .value_name("SOL")
+                .takes_value(true)
+                .validator(is_parsable::<f64>)
+                .help(
+                    "Alert when a monitored validator's vote account balance is less than this \
+                     amount of SOL. Checked in addition to the automatic validator admission \
+                     ticket (VAT) balance check",
+                ),
+        )
+        .arg(
             // Deprecated parameter, now always enabled
             Arg::with_name("no_duplicate_notifications")
                 .long("no-duplicate-notifications")
@@ -215,6 +228,9 @@ fn get_config() -> Config {
         .value_of("minimum_validator_identity_balance")
         .and_then(sol_str_to_lamports)
         .unwrap();
+    let minimum_vote_account_balance = matches
+        .value_of("minimum_vote_account_balance")
+        .and_then(sol_str_to_lamports);
     let json_rpc_urls = values_t!(matches, "json_rpc_urls", String).unwrap_or_else(|_| {
         vec![value_t!(matches, "json_rpc_url", String).unwrap_or_else(|_| config.json_rpc_url)]
     });
@@ -241,6 +257,7 @@ fn get_config() -> Config {
         json_rpc_urls,
         rpc_timeout,
         minimum_validator_identity_balance,
+        minimum_vote_account_balance,
         monitor_active_stake,
         active_stake_alert_threshold,
         unhealthy_threshold,
@@ -464,7 +481,9 @@ fn query_endpoint(
                     ));
                 }
 
-                if let Some(minimum_vat_vote_account_balance) = minimum_vat_vote_account_balance {
+                if minimum_vat_vote_account_balance.is_some()
+                    || config.minimum_vote_account_balance.is_some()
+                {
                     for vote_account in vote_accounts
                         .current
                         .iter()
@@ -483,7 +502,10 @@ fn query_endpoint(
                         };
 
                         let balance = endpoint.rpc_client.get_balance(&vote_pubkey)?;
-                        if balance < minimum_vat_vote_account_balance {
+                        if let Some(minimum_vat_vote_account_balance) =
+                            minimum_vat_vote_account_balance
+                            && balance < minimum_vat_vote_account_balance
+                        {
                             failures.push((
                                 "vat-vote-account-balance",
                                 format!(
@@ -493,6 +515,21 @@ fn query_endpoint(
                                     vote_pubkey,
                                     Sol(balance),
                                     Sol(minimum_vat_vote_account_balance)
+                                ),
+                            ));
+                        }
+                        if let Some(minimum_vote_account_balance) =
+                            config.minimum_vote_account_balance
+                            && balance < minimum_vote_account_balance
+                        {
+                            failures.push((
+                                "vote-account-balance",
+                                format!(
+                                    "{} vote account {} has {}, below the configured minimum of {}",
+                                    formatted_validator_identity,
+                                    vote_pubkey,
+                                    Sol(balance),
+                                    Sol(minimum_vote_account_balance)
                                 ),
                             ));
                         }
