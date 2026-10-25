@@ -44,6 +44,17 @@ struct Config {
     acceptable_slot_range: u64,
 }
 
+/// Accepts exactly what `sol_str_to_lamports` accepts, so a value that passes validation
+/// can never be dropped later at conversion time (e.g. `1e2` parses as an f64 but is not a
+/// valid SOL amount).
+fn is_sol_amount(amount: String) -> Result<(), String> {
+    if sol_str_to_lamports(&amount).is_some() {
+        Ok(())
+    } else {
+        Err(format!("Unable to parse SOL amount, provided: {amount}"))
+    }
+}
+
 fn get_config() -> Config {
     let matches = App::new(crate_name!())
         .about(crate_description!())
@@ -148,7 +159,7 @@ fn get_config() -> Config {
                 .value_name("SOL")
                 .takes_value(true)
                 .default_value("10")
-                .validator(is_parsable::<f64>)
+                .validator(is_sol_amount)
                 .help("Alert when the validator identity balance is less than this amount of SOL"),
         )
         .arg(
@@ -156,7 +167,7 @@ fn get_config() -> Config {
                 .long("minimum-vote-account-balance")
                 .value_name("SOL")
                 .takes_value(true)
-                .validator(is_parsable::<f64>)
+                .validator(is_sol_amount)
                 .help(
                     "Alert when a monitored validator's vote account balance is less than this \
                      amount of SOL. Checked in addition to the automatic validator admission \
